@@ -2,11 +2,12 @@ from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.utils.dateparse import parse_date
+from datetime import datetime, timedelta
+from django.db.models import Sum
 from .models import Category, Transaction
 from .serializers import CategorySerializer, TransactionSerializer, DashboardSerializer
-from django.db.models import Sum
-from datetime import datetime, timedelta
-from django.utils.dateparse import parse_date
+
 
 class CategoryListCreateView(generics.ListCreateAPIView):
     serializer_class = CategorySerializer
@@ -27,6 +28,15 @@ class TransactionListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+
+class TransactionDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = TransactionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Transaction.objects.filter(user=self.request.user)
+
 
 class DashboardAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -53,17 +63,6 @@ class DashboardAPIView(APIView):
             'balance': balance,
             'categories': data
         }, status=status.HTTP_200_OK)
-
-
-from django.utils.dateparse import parse_date
-from datetime import datetime, timedelta
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework import status
-from django.db.models import Sum
-
-from .models import Transaction
 
 
 class SummaryAPIView(APIView):
@@ -99,11 +98,9 @@ class SummaryAPIView(APIView):
 
             end = now
         filtered = transactions.filter(date__gte=start, date__lte=end)
-
         income = filtered.filter(category__type='income').aggregate(sum=Sum('amount'))['sum'] or 0
         expense = filtered.filter(category__type='expense').aggregate(sum=Sum('amount'))['sum'] or 0
         balance = income - expense
-
         return Response({
             'start_date': start.date(),
             'end_date': end.date(),
@@ -111,4 +108,3 @@ class SummaryAPIView(APIView):
             'expense': expense,
             'balance': balance
         }, status=status.HTTP_200_OK)
-
